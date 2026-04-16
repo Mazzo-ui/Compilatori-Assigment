@@ -45,4 +45,4 @@ opt -load-pass-plugin ./libAllInOne.so -passes="mem2reg,algebraic-identity,stren
 ## Note
 
 - `mem2reg` è utile perché elimina molte istruzioni `alloca`, `load` e `store`, aiutando `multi-inst-opt` a riconoscere i pattern.
-
+-  per generare il file llvm da test utilizziamo O0 per tradurre 1 a 1 la funzione senza alcun tipo di ottimizzazione.
