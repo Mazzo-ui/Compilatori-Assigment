@@ -1,0 +1,7 @@
+cd ../build
+  254  cmake ../src
+  255  make
+  256  cd ../test
+  257  clang -O0 -Xclang -disable-O0-optnone -S -emit-llvm test_licm.c -o test_licm.ll
+  258  opt -passes=mem2reg -S test_licm.ll -o test_licm.m2r.ll
+  259  opt -load-pass-plugin=../build/libLocalOpts.so -passes=loop-invariant-motion -S test_licm.m2r.ll -o test_licm.opt.ll
