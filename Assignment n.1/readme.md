@@ -36,6 +36,9 @@ Genera il file LLVM IR di test a partire da `test.cpp`:
 clang++ -O0 -Xclang -disable-O0-optnone -S -emit-llvm ../test/test.cpp -o ../test/test.ll
 ```
 
+Aggiungi poi questo per togliere le load/store:
+```opt -passes="mem2reg" ../test/test.ll -S -o ../test/test_noloadstore.ll```
+
 Esegui i pass del plugin sul file di test:
 
 ```bash
