@@ -1,237 +1,160 @@
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/ADT/DenseMap.h"
+
+#include <set>
+#include <vector>
+#include <algorithm>
 
 using namespace llvm;
 
 namespace {
 
-class LoopInvariantMotionPass : public PassInfoMixin<LoopInvariantMotionPass> {
-public:
+struct LoopInvariantMotionPass : PassInfoMixin<LoopInvariantMotionPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
     LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
     DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
 
-    if (LI.empty()) {
-      outs() << "[LoopInvariantMotion] Funzione " << F.getName()
-             << ": nessun loop trovato.\n";
-      return PreservedAnalyses::all();
-    }
-
-    bool Changed = false;
-
-    outs() << "\n==============================\n";
-    outs() << "LoopInvariantMotion su funzione: " << F.getName() << "\n";
-    outs() << "==============================\n";
+    bool change = false;
 
     for (Loop *L : LI) {
-      Changed |= processLoopAndSubLoops(L, DT);
-    }
-
-    if (!Changed) {
-      return PreservedAnalyses::all();
-    }
-
-    PreservedAnalyses PA;
-    PA.preserve<DominatorTreeAnalysis>();
-    PA.preserve<LoopAnalysis>();
-    return PA;
-  }
-
-private:
-  bool processLoopAndSubLoops(Loop *L, DominatorTree &DT) {
-    bool Changed = false;
-
-    for (Loop *SubLoop : L->getSubLoops()) {
-      Changed |= processLoopAndSubLoops(SubLoop, DT);
-    }
-
-    Changed |= processSingleLoop(L, DT);
-    return Changed;
-  }
-
-  bool processSingleLoop(Loop *L, DominatorTree &DT) {
-    BasicBlock *Header = L->getHeader();
-    BasicBlock *Preheader = L->getLoopPreheader();
-
-    outs() << "\n[Loop] Header: ";
-    Header->printAsOperand(outs(), false);
-    outs() << "\n";
-
-    if (!Preheader) {
-      outs() << "  Nessun preheader: salto il loop.\n";
-      return false;
-    }
-
-    outs() << "  Preheader: ";
-    Preheader->printAsOperand(outs(), false);
-    outs() << "\n";
-
-    SmallPtrSet<Instruction *, 32> InvariantInstructions;
-    SmallVector<Instruction *, 32> ToMove;
-
-    bool FoundNewInvariant = true;
-    while (FoundNewInvariant) {
-      FoundNewInvariant = false;
-
-      for (BasicBlock *BB : L->blocks()) {
-        for (Instruction &I : *BB) {
-          if (InvariantInstructions.contains(&I)) {
-            continue;
-          }
-
-          if (!isInstructionSafeForThisAssignment(I)) {
-            continue;
-          }
-
-          if (!areOperandsLoopInvariant(I, L, InvariantInstructions)) {
-            continue;
-          }
-
-          InvariantInstructions.insert(&I);
-          FoundNewInvariant = true;
-
-          outs() << "  Loop-invariant trovata: ";
-          I.print(outs());
-          outs() << "\n";
-        }
-      }
-    }
-
-    for (Instruction *I : InvariantInstructions) {
-      if (canMoveInstruction(*I, L, DT)) {
-        ToMove.push_back(I);
-      } else {
-        outs() << "  Non spostabile (violazione dominanza usi):\n";
-        I->print(outs());
-        outs() << "\n";
-      }
-    }
-
-    if (ToMove.empty()) {
-      outs() << "  Nessuna istruzione candidata alla code motion.\n";
-      return false;
-    }
-
-    sortInstructionsInProgramOrder(ToMove, L);
-
-    Instruction *InsertPoint = Preheader->getTerminator();
-    for (Instruction *I : ToMove) {
-      outs() << "  Sposto nel preheader: ";
-      I->print(outs());
-      outs() << "\n";
-      I->moveBefore(InsertPoint);
-    }
-
-    return true;
-  }
-
-  bool isInstructionSafeForThisAssignment(Instruction &I) const {
-    if (I.isTerminator()) {
-      return false;
-    }
-
-    if (isa<PHINode>(&I)) {
-      return false;
-    }
-
-    if (I.mayReadOrWriteMemory()) {
-      return false;
-    }
-
-    if (I.mayHaveSideEffects()) {
-      return false;
-    }
-
-    return isa<BinaryOperator>(&I) || isa<CastInst>(&I) || isa<CmpInst>(&I) ||
-           isa<SelectInst>(&I) || isa<GetElementPtrInst>(&I);
-  }
-
-  bool areOperandsLoopInvariant(
-      Instruction &I, Loop *L,
-      const SmallPtrSetImpl<Instruction *> &InvariantInstructions) const {
-    for (Value *Op : I.operands()) {
-      if (isa<Constant>(Op)) {
+      BasicBlock *Preheader = L->getLoopPreheader();
+      if (!Preheader)
         continue;
-      }
 
-      Instruction *OpInst = dyn_cast<Instruction>(Op);
+      // ----------------------------------------------------
+      // FASE 1: Individuazione istruzioni invarianti
+      // ----------------------------------------------------
+      std::set<Instruction *> istruzInvarianti;
+      bool isOpInvariant = true;
 
-      if (!OpInst) {
-        continue;
-      }
+      while (isOpInvariant) {
+        isOpInvariant = false;
+        for (BasicBlock *BB : L->blocks()) {
+          for (Instruction &I : *BB) {
+            if (istruzInvarianti.count(&I))
+              continue;
 
-      if (!L->contains(OpInst)) {
-        continue;
-      }
+            if (I.getOpcode() == Instruction::PHI || I.getOpcode() == Instruction::Br)
+              continue;
 
-      if (InvariantInstructions.contains(OpInst)) {
-        continue;
-      }
+            if (I.mayHaveSideEffects() || I.mayReadOrWriteMemory())
+              continue;
 
-      return false;
-    }
+            bool opInternaInv = true;
+            for (Value *Op : I.operands()) {
+              if (dyn_cast<Constant>(Op))
+                continue;
 
-    return true;
-  }
+              if (Instruction *OpInst = dyn_cast<Instruction>(Op)) {
+                if (L->contains(OpInst) && !istruzInvarianti.count(OpInst)) {
+                  opInternaInv = false;
+                  break;
+                }
+              }
+            }
 
-  bool canMoveInstruction(Instruction &I, Loop *L, DominatorTree &DT) const {
-    // Controllo fondamentale, L'istruzione deve dominare tutti i suoi usi interni al loop.
-    // Assumiamo che le operazioni matematiche sicure (senza side-effects) rilevate 
-    // siano speculabili senza vincoli di dominanza sui blocchi condizionali di uscita.
-    for (User *U : I.users()) {
-      Instruction *UserI = dyn_cast<Instruction>(U);
-      if (!UserI) {
-        continue;
-      }
-
-      if (!L->contains(UserI)) {
-        continue;
-      }
-
-      // Gestione dei nodi PHI interni/di uscita
-      if (PHINode *PN = dyn_cast<PHINode>(UserI)) {
-        for (unsigned Idx = 0; Idx < PN->getNumIncomingValues(); ++Idx) {
-          if (PN->getIncomingValue(Idx) == &I) {
-            if (!DT.dominates(I.getParent(), PN->getIncomingBlock(Idx))) {
-              return false;
+            if (opInternaInv) {
+              istruzInvarianti.insert(&I);
+              isOpInvariant = true;
             }
           }
         }
-      } else {
-        if (!DT.dominates(&I, UserI)) {
-          return false;
+      }
+
+      // ----------------------------------------------------
+      // FASE 2 & 3: Controllo condizioni di sicurezza e selezione
+      // ----------------------------------------------------
+      std::vector<BasicBlock *> ExitBlocks;
+      L->getExitBlocks(ExitBlocks);
+
+      std::vector<Instruction *> istruzDaSpostare;
+      std::set<Instruction *> setDaSpostare;
+      bool Progress = true;
+
+      while (Progress) {
+        Progress = false;
+        for (BasicBlock *BB : L->blocks()) {
+          for (Instruction &I : *BB) {
+            if (!istruzInvarianti.count(&I) || setDaSpostare.count(&I))
+              continue;
+
+            // Condizione 1: Domina tutte le uscite oppure è Dead fuori
+            bool DominatesExits = true;
+            for (BasicBlock *ExitBB : ExitBlocks) {
+              if (!DT.dominates(I.getParent(), ExitBB)) {
+                DominatesExits = false;
+                break;
+              }
+            }
+
+            bool DeadOutside = true;
+            for (User *U : I.users()) {
+              if (Instruction *UI = dyn_cast<Instruction>(U)) {
+                if (!L->contains(UI->getParent())) {
+                  DeadOutside = false;
+                  break;
+                }
+              }
+            }
+
+            if (!DominatesExits && !DeadOutside)
+              continue;
+
+            // Condizione 2: Domina tutti i suoi usi interni al loop
+            bool DominatesUses = true;
+            for (User *U : I.users()) {
+              if (Instruction *UI = dyn_cast<Instruction>(U)) {
+                if (L->contains(UI) && !DT.dominates(&I, UI)) {
+                  DominatesUses = false;
+                  break;
+                }
+              }
+            }
+
+            if (!DominatesUses)
+              continue;
+
+            // Condizione 3: Dipendenze SSA (gli operandi interni devono essere già pronti)
+            bool DepsReady = true;
+            for (Value *Op : I.operands()) {
+              if (Instruction *OpInst = dyn_cast<Instruction>(Op)) {
+                if (L->contains(OpInst) && !setDaSpostare.count(OpInst)) {
+                  DepsReady = false;
+                  break;
+                }
+              }
+            }
+
+            if (!DepsReady)
+              continue;
+
+            istruzDaSpostare.push_back(&I);
+            setDaSpostare.insert(&I);
+            Progress = true;
+          }
         }
       }
-    }
 
-    return true;
-  }
-
-  void sortInstructionsInProgramOrder(SmallVectorImpl<Instruction *> &Insts,
-                                      Loop *L) const {
-    DenseMap<Instruction *, unsigned> Order;
-    unsigned Index = 0;
-
-    for (BasicBlock *BB : L->blocks()) {
-      for (Instruction &I : *BB) {
-        Order[&I] = Index++;
+      // Spostamento effettivo nel Preheader
+      Instruction *InsertPt = Preheader->getTerminator();
+      for (Instruction *I : istruzDaSpostare) {
+        I->moveBefore(InsertPt);
+        change = true;
       }
-    }
+    } // Chiusura del for (Loop *L : LI)
 
-    llvm::sort(Insts, [&](Instruction *A, Instruction *B) {
-      return Order.lookup(A) < Order.lookup(B);
-    });
+    if (change)
+      return PreservedAnalyses::none();
+
+    return PreservedAnalyses::all();
   }
 };
 
