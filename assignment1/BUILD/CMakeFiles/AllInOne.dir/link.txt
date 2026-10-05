@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -Wl,--dependency-file=CMakeFiles/AllInOne.dir/link.d -shared -Wl,-soname,libAllInOne.so -o libAllInOne.so CMakeFiles/AllInOne.dir/AllInOne.cpp.o

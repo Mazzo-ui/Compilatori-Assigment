@@ -1,0 +1,9 @@
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/intrinsics_gen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/omp_gen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/acc_gen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/ARMTargetParserTableGen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/AArch64TargetParserTableGen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/RISCVTargetParserTableGen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/AllInOne.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/edit_cache.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment1/BUILD/CMakeFiles/rebuild_cache.dir
