@@ -1,0 +1,9 @@
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/intrinsics_gen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/omp_gen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/acc_gen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/ARMTargetParserTableGen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/AArch64TargetParserTableGen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/RISCVTargetParserTableGen.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/LoopFusion.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/edit_cache.dir
+/home/vboxuser/Desktop/COMPILATORI 2/assignment veri/assignment4/BUILD/CMakeFiles/rebuild_cache.dir

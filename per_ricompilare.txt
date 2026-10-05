@@ -1,0 +1,6 @@
+1. Elimini BUILD
+2. La ricrei e ci entri dentro
+3. cmake ../SRC
+4. make
+
+FINE

@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -Wl,--dependency-file=CMakeFiles/LoopFusion.dir/link.d -shared -Wl,-soname,libLoopFusion.so -o libLoopFusion.so CMakeFiles/LoopFusion.dir/LoopFusion.cpp.o
